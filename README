@@ -699,33 +699,6 @@ ssh ecoute:
 level10@SnowCrash:~$ nc -lv 6969
 Connection from 10.0.2.15 port 6969 [tcp/*] accepted
 .*( )*.
-ELF 4$4         ($!444  TTTT
-                            T
-                             8X(((��hhhDDP�td\
-                                              \\44Q�tdR�td��/lib/ld-linux.so.2GNUGNU���W�h�}1֟}�5A�f�# )��K��x`0O<J� 7���g�)�B}`<__gmon_start__libc.so.6_IO_stdin_usedsocketfflushexithtonsconnectputs__stack_chk_failprintf__errno_locationreadstdoutinet_addropenaccessstrerror__libc_start_mainwrite��iBC_2.4GLIBC_2.0ii
- �      $�
-(�
- ,�
-48<@S��[���������t�����[��5��%��%h������%������h������%
-                                                       h�����%h �����%h(�����%h0�����%h8�p����% h@�`����%$hH�P����%(hP�@����%,hX�0����%0h`� ����%4hh�����%8hp�����%<hx������%@h������1�^����PTRhhpQVh�o�����������������U��S���=du?�h� ������9�s�����h���h9�r��d��[]Ít&��'U����$��t���t     �$$���ÐU�����P�E
-����$�q����D$�@�D$(�D$��D$,�D$����D$�$���������{�T$,�T$�$�����`�$�����D�D$�$�\����D$0��$<��@��@
-                                                                                               fǄ$<�D$,�$�0�����$@�$9m���f��$>�D��$<�D$�D$0�$�������u!���T$,�T$�$������$�`�����D$��D$0�$�t������u!���T$,�T$�$�����$������$�����`�$�����D$�D$(�$�����D$4�|$4�u�$������$������D�D$<�D$�D$4�$�1����D$8�|$8�u,�������$�w�����D$�$�����$�z����D$8�D�D$<�D$�D$0�$�����$3�"�����?�T$(�T$�$�������$Le3t������Ð����������������Ë$Ð���������U��S������t�f����Ћ���u��[]Ð�S��[��������[�%s file host�
-        sends file to host if you have access to it
-Connecting to %s:6969 .. Unable to connect to host %s
-.*( )*.
-Unable to write banner to host %s
-Connected!
-Sending file .. Damn. Unable to open fileUnable to read from file: %s
-wrote file!You don't have access to %s
-0����Lx���p��������������zR|
-                            P���F
-                                 J
-��                                tx?;*2$"@�����B
-  8`|���a�A
-           �A�A�N0JA�A
-                      ��A�������������������
-���o�Ё                                      Є
-�
 
 => Point important: Le transfert ne fonctionne que s'il y a une ecoute de l'autre côté
 
@@ -1152,14 +1125,15 @@ Program received signal SIGABRT, Aborted.
 
 x24ti5gi3x0ol2eh4esiuxias => Pas le bon flag
 
-Il semblerait que dans le disas main il est 15 appel de ft_des => il faut trouver le bon
+Il semblerait que dans le disass main il est 15 appel de ft_des
+Les premiers flags trouvés sont ceux des levels précédents 
 
-1 => 0x08048bf3 => x24ti5gi3x0ol2eh4esiuxias => X
-2 => 0x08048c17 => f2av5il02puano7naaf6adaaf => X
-3 => 0x08048c3b => kooda2puivaav1idi4f57q8iq => X
+level00 => 0x08048bf3 => x24ti5gi3x0ol2eh4esiuxias
+level01 => 0x08048c17 => f2av5il02puano7naaf6adaaf
+level02 => 0x08048c3b => kooda2puivaav1idi4f57q8iq
 
 
-15 => 0x08048de5 => 7QiHafiNa3HVozsaXkawuYrTstxbpABHD8CPnHJ
+level14 => 0x08048de5 => 7QiHafiNa3HVozsaXkawuYrTstxbpABHD8CPnHJ
 
 flag14@SnowCrash:~$ su flag14
 Password: 
